@@ -1186,6 +1186,15 @@ Map<String, Object> out = new LinkedHashMap<>();
      * Set a function's prototype with calling convention and program name support.
      */
     public PrototypeResult setFunctionPrototype(String functionAddrStr, String prototype, String callingConvention, String programName) {
+        return setFunctionPrototype(functionAddrStr, prototype, callingConvention, null, programName);
+    }
+
+    /**
+     * Set a function's prototype with calling convention, custom variable storage and program name support.
+     * A null customStorage leaves the function's storage mode unchanged.
+     */
+    public PrototypeResult setFunctionPrototype(String functionAddrStr, String prototype, String callingConvention,
+                                                Boolean customStorage, String programName) {
         // Input validation
         ServiceUtils.ProgramOrError pe = ServiceUtils.getProgramOrError(programProvider, programName);
         if (pe.hasError()) return new PrototypeResult(false, pe.error().toJson());
@@ -1215,7 +1224,7 @@ Map<String, Object> out = new LinkedHashMap<>();
 
         try {
             threadingStrategy.executeRead(() -> {
-                applyFunctionPrototype(program, functionAddrStr, finalPrototype, finalConvention, success, errorMessage);
+                applyFunctionPrototype(program, functionAddrStr, finalPrototype, finalConvention, customStorage, success, errorMessage);
                 return null;
             });
         } catch (Exception e) {
@@ -1250,8 +1259,13 @@ Map<String, Object> out = new LinkedHashMap<>();
                                + "whatever else list_calling_conventions reports for this program's "
                                + "language. When set it OVERRIDES the convention written into the "
                                + "prototype string; omit to use whatever the prototype says.") String callingConvention,
+            @Param(value = "custom_storage", source = ParamSource.BODY, defaultValue = "",
+                   description = "true switches the function to custom variable storage (so set_variable_storage "
+                               + "assignments stick and the convention no longer re-derives parameter storage), "
+                               + "false reverts to convention-driven storage. Applied after the signature. Omit "
+                               + "to leave the current mode unchanged.") Boolean customStorage,
             @Param(value = "program", description = "Target program name", defaultValue = "") String programName) {
-        PrototypeResult result = setFunctionPrototype(functionAddress, prototype, callingConvention, programName);
+        PrototypeResult result = setFunctionPrototype(functionAddress, prototype, callingConvention, customStorage, programName);
         if (result.isSuccess()) {
             List<String> warnings = new ArrayList<>();
             // Warn about __thiscall ECX auto-param limitation
@@ -1276,6 +1290,9 @@ Map<String, Object> out = new LinkedHashMap<>();
             if (callingConvention != null && !callingConvention.isEmpty()) {
                 out.put("calling_convention", callingConvention);
             }
+            if (customStorage != null) {
+                out.put("custom_storage", customStorage);
+            }
             if (!warnings.isEmpty()) out.put("warnings", warnings);
             return Response.ok(out);
         } else {
@@ -1288,7 +1305,8 @@ Map<String, Object> out = new LinkedHashMap<>();
      * v3.0.1: Preserves existing plate comment across prototype changes.
      */
     void applyFunctionPrototype(Program program, String functionAddrStr, String prototype,
-                                       String callingConvention, AtomicBoolean success, StringBuilder errorMessage) {
+                                       String callingConvention, Boolean customStorage,
+                                       AtomicBoolean success, StringBuilder errorMessage) {
         try {
             // Get the address and function
             Address addr = ServiceUtils.parseAddress(program, functionAddrStr);
@@ -1314,6 +1332,25 @@ Map<String, Object> out = new LinkedHashMap<>();
 
             // Use ApplyFunctionSignatureCmd to parse and apply the signature
             parseFunctionSignatureAndApply(program, addr, prototype, callingConvention, success, errorMessage);
+
+            // Apply the storage mode AFTER the signature: ApplyFunctionSignatureCmd may reset it.
+            if (success.get() && customStorage != null
+                    && func.hasCustomVariableStorage() != customStorage) {
+                WriteTx txStorage = WriteTx.begin(program, "Set custom variable storage");
+                boolean storageApplied = false;
+                try {
+                    func.setCustomVariableStorage(customStorage);
+                    storageApplied = true;
+                    Msg.info(this, "Set custom variable storage to " + customStorage + " for " + func.getName());
+                } catch (Exception e) {
+                    String msg = "Error setting custom variable storage: " + e.getMessage();
+                    errorMessage.append(msg);
+                    Msg.error(this, msg, e);
+                    success.set(false);
+                } finally {
+                    txStorage.end(storageApplied);
+                }
+            }
 
             // v3.0.1: Restore plate comment if it was wiped by prototype change
             if (savedPlateComment != null && !savedPlateComment.isEmpty()) {

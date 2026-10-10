@@ -2526,15 +2526,20 @@ public class ProgramScriptService {
         return sb.toString();
     }
 
-    @McpTool(path = "/run_script_inline", dryRun = false, method = "POST", description = "Execute inline Ghidra script code. Pass the full Java source as the 'code' body parameter. Gated by GHIDRA_MCP_ALLOW_SCRIPTS=1 (v5.4.1+).", category = "program", access = ToolAccess.WRITE)
+    @McpTool(path = "/run_script_inline", dryRun = false, method = "POST", description = "Execute inline Ghidra script code. Pass the full Java source (default) or Python source (language=python) as the 'code' body parameter. Gated by GHIDRA_MCP_ALLOW_SCRIPTS=1 (v5.4.1+).", category = "program", access = ToolAccess.WRITE)
     public Response runScriptInline(
             @Param(value = "code", source = ParamSource.BODY,
-                   description = "Complete Java source for a GhidraScript, as one string — not a bare "
-                               + "statement. If it declares `public class X` that name is used for the "
-                               + "file; otherwise a unique McpInline_<hex> class name is generated. The "
-                               + "source is written into ~/ghidra_scripts and compiled by Ghidra, so a "
-                               + "compile error surfaces as script output rather than as a request "
-                               + "error.") String code,
+                   description = "Script source as one string. Java: a complete GhidraScript, or a bare "
+                               + "run() body that is wrapped in one. If it declares `public class X` that "
+                               + "name is used for the file; otherwise a unique McpInline_<hex> class name "
+                               + "is generated. Python: written as-is to McpInline_<hex>.py, with the "
+                               + "GhidraScript builtins (currentProgram, toAddr, ...) in scope. The source "
+                               + "is written into ~/ghidra_scripts and run by Ghidra, so a compile error "
+                               + "surfaces as script output rather than as a request error.") String code,
+            @Param(value = "language", source = ParamSource.BODY, defaultValue = "java",
+                   description = "Script language: 'java' (default) or 'python'. Python needs a Python "
+                               + "script provider in Ghidra (PyGhidra, or the Jython extension); without "
+                               + "one the run reports 'No script provider found'.") String language,
             @Param(value = "args", source = ParamSource.BODY, defaultValue = "",
                    description = "Arguments handed to the script, split on WHITESPACE into a String[]. "
                                + "There is no quoting, so an argument containing a space arrives as two "
@@ -2543,19 +2548,32 @@ public class ProgramScriptService {
         if (!SecurityConfig.getInstance().areScriptsAllowed()) {
             return Response.err("Script execution disabled. Set GHIDRA_MCP_ALLOW_SCRIPTS=1 "
                 + "(and GHIDRA_MCP_AUTH_TOKEN if exposing beyond loopback) to enable. "
-                + "/run_script_inline executes arbitrary Java against the Ghidra process.");
+                + "/run_script_inline executes arbitrary code against the Ghidra process.");
         }
         if (code == null || code.trim().isEmpty()) {
             return Response.err("code parameter required");
         }
+        String lang = language == null || language.isBlank()
+            ? "java" : language.strip().toLowerCase(java.util.Locale.ROOT);
+        boolean isPython;
+        if (lang.equals("java")) {
+            isPython = false;
+        } else if (lang.equals("python") || lang.equals("py")) {
+            isPython = true;
+        } else {
+            return Response.err("Unsupported language '" + language + "'. Use 'java' or 'python'.");
+        }
+        String extension = isPython ? ".py" : ".java";
 
         // Use unique class name per invocation so Ghidra recompiles each time.
-        // If user provides their own class, extract its name for the filename.
+        // If user provides their own Java class, extract its name for the filename.
         String className = "McpInline_" + Long.toHexString(System.nanoTime());
-        java.util.regex.Matcher m = java.util.regex.Pattern
-            .compile("public\\s+class\\s+(\\w+)").matcher(code);
-        if (m.find()) {
-            className = m.group(1);
+        if (!isPython) {
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("public\\s+class\\s+(\\w+)").matcher(code);
+            if (m.find()) {
+                className = m.group(1);
+            }
         }
 
         // Write to ~/ghidra_scripts/ so OSGi classloader can find the source bundle
@@ -2564,7 +2582,7 @@ public class ProgramScriptService {
 
         purgeStaleInlineScripts(scriptsDir, System.currentTimeMillis());
 
-        File tempScript = new File(scriptsDir, className + ".java");
+        File tempScript = new File(scriptsDir, className + extension);
         // Refuse to clobber a script this service did not create. `className` comes
         // from the caller's own `public class Foo`, so without this check an inline
         // script named after an existing hand-written script silently overwrites it.
@@ -2580,10 +2598,10 @@ public class ProgramScriptService {
         Response[] responseHolder = {null};
 
         try {
-            // If code doesn't contain a class definition, wrap it.
-            // Hoist any import statements to file level so they don't land inside run().
+            // Python is written as-is. Java code without a class definition is wrapped,
+            // hoisting any import statements to file level so they don't land inside run().
             String scriptCode = code;
-            if (!code.contains("extends GhidraScript")) {
+            if (!isPython && !code.contains("extends GhidraScript")) {
                 StringBuilder topImports = new StringBuilder("import ghidra.app.script.GhidraScript;\n");
                 StringBuilder body = new StringBuilder();
                 for (String line : code.split("\n", -1)) {
@@ -2620,11 +2638,11 @@ public class ProgramScriptService {
                     // Clean run: remove the source file immediately.
                     if (!tempScript.delete()) tempScript.deleteOnExit();
                 } else {
-                    // Failed run: leave .java on disk for next run's pre-cleanup to remove
+                    // Failed run: leave the script on disk for next run's pre-cleanup to remove
                     // (which will clear Ghidra's build-state entry for it), and write an
                     // oracle so that cleanup is instant rather than time-delayed.
                     try {
-                        File oracle = new File(scriptsDir, className + ".java_failed");
+                        File oracle = new File(scriptsDir, tempScript.getName() + "_failed");
                         String failureInfo = responseHolder[0] != null
                             ? responseHolder[0].toJson()
                             : "exception before script execution";
@@ -2664,7 +2682,8 @@ public class ProgramScriptService {
      *       the file may be the operator's own.</li>
      *   <li>No oracle, fresh → likely a concurrent run; leave alone.</li>
      * </ol>
-     * Orphaned oracles whose {@code .java} is already gone are purged too.
+     * Orphaned oracles whose {@code .java} is already gone are purged too. Python inline
+     * scripts ({@code .py}, oracle {@code .py_failed}) are swept by the same rules.
      *
      * <p>Static, and side-effect-scoped to {@code scriptsDir}, so {@code InlineScriptCleanupTest}
      * can drive it against a temporary directory. Public only because the offline tests live
@@ -2676,26 +2695,28 @@ public class ProgramScriptService {
      */
     public static java.util.List<String> purgeStaleInlineScripts(File scriptsDir, long now) {
         java.util.List<String> removed = new java.util.ArrayList<>();
-        File[] javaFiles = scriptsDir.listFiles((d, n) -> n.endsWith(".java"));
-        if (javaFiles != null) {
-            for (File script : javaFiles) {
-                File oracle = new File(scriptsDir, script.getName() + "_failed");
-                boolean generatedName = script.getName().startsWith("McpInline_");
-                if (oracle.exists()) {
-                    if (oracle.delete()) removed.add(oracle.getName());
-                    if (script.delete()) removed.add(script.getName());
-                } else if (generatedName && now - script.lastModified() > INLINE_SCRIPT_ORPHAN_AGE_MS) {
-                    if (script.delete()) removed.add(script.getName());
+        for (String extension : new String[]{".java", ".py"}) {
+            File[] scripts = scriptsDir.listFiles((d, n) -> n.endsWith(extension));
+            if (scripts != null) {
+                for (File script : scripts) {
+                    File oracle = new File(scriptsDir, script.getName() + "_failed");
+                    boolean generatedName = script.getName().startsWith("McpInline_");
+                    if (oracle.exists()) {
+                        if (oracle.delete()) removed.add(oracle.getName());
+                        if (script.delete()) removed.add(script.getName());
+                    } else if (generatedName && now - script.lastModified() > INLINE_SCRIPT_ORPHAN_AGE_MS) {
+                        if (script.delete()) removed.add(script.getName());
+                    }
                 }
             }
-        }
-        File[] oracles = scriptsDir.listFiles((d, n) -> n.endsWith(".java_failed"));
-        if (oracles != null) {
-            for (File oracle : oracles) {
-                String javaName = oracle.getName()
-                    .substring(0, oracle.getName().length() - "_failed".length());
-                if (!new File(scriptsDir, javaName).exists() && oracle.delete()) {
-                    removed.add(oracle.getName());
+            File[] oracles = scriptsDir.listFiles((d, n) -> n.endsWith(extension + "_failed"));
+            if (oracles != null) {
+                for (File oracle : oracles) {
+                    String scriptName = oracle.getName()
+                        .substring(0, oracle.getName().length() - "_failed".length());
+                    if (!new File(scriptsDir, scriptName).exists() && oracle.delete()) {
+                        removed.add(oracle.getName());
+                    }
                 }
             }
         }

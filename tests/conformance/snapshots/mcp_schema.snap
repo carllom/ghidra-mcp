@@ -6017,14 +6017,22 @@
     {
       "category": "program",
       "category_description": "Program management, script execution, memory read, bookmarks, save",
-      "description": "Execute inline Ghidra script code. Pass the full Java source as the 'code' body parameter. Gated by GHIDRA_MCP_ALLOW_SCRIPTS=1 (v5.4.1+).",
+      "description": "Execute inline Ghidra script code. Pass the full Java source (default) or Python source (language=python) as the 'code' body parameter. Gated by GHIDRA_MCP_ALLOW_SCRIPTS=1 (v5.4.1+).",
       "destructive": false,
       "method": "POST",
       "params": [
         {
-          "description": "Complete Java source for a GhidraScript, as one string — not a bare statement. If it declares `public class X` that name is used for the file; otherwise a unique McpInline_<hex> class name is generated. The source is written into ~/ghidra_scripts and compiled by Ghidra, so a compile error surfaces as script output rather than as a request error.",
+          "description": "Script source as one string. Java: a complete GhidraScript, or a bare run() body that is wrapped in one. If it declares `public class X` that name is used for the file; otherwise a unique McpInline_<hex> class name is generated. Python: written as-is to McpInline_<hex>.py, with the GhidraScript builtins (currentProgram, toAddr, ...) in scope. The source is written into ~/ghidra_scripts and run by Ghidra, so a compile error surfaces as script output rather than as a request error.",
           "name": "code",
           "required": true,
+          "source": "body",
+          "type": "string"
+        },
+        {
+          "default": "java",
+          "description": "Script language: 'java' (default) or 'python'. Python needs a Python script provider in Ghidra (PyGhidra, or the Jython extension); without one the run reports 'No script provider found'.",
+          "name": "language",
+          "required": false,
           "source": "body",
           "type": "string"
         },
@@ -6701,6 +6709,14 @@
           "required": false,
           "source": "body",
           "type": "string"
+        },
+        {
+          "default": "",
+          "description": "true switches the function to custom variable storage (so set_variable_storage assignments stick and the convention no longer re-derives parameter storage), false reverts to convention-driven storage. Applied after the signature. Omit to leave the current mode unchanged.",
+          "name": "custom_storage",
+          "required": false,
+          "source": "body",
+          "type": "boolean"
         },
         {
           "default": "",

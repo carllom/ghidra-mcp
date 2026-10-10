@@ -111,6 +111,28 @@ public class InlineScriptCleanupTest extends TestCase {
         assertTrue(removed.contains("SomeUserClass.java_failed"));
     }
 
+    /** Python inline scripts follow the same rules as Java ones. */
+    public void testPythonScriptsAreSweptLikeJava() throws Exception {
+        File failed = write("McpInline_py1.py", "print(1)");
+        File failedOracle = write("McpInline_py1.py_failed", "fail");
+        File orphan = write("McpInline_py2.py", "print(2)");
+        assertTrue(orphan.setLastModified(System.currentTimeMillis()
+            - ProgramScriptService.INLINE_SCRIPT_ORPHAN_AGE_MS - 5_000L));
+        File fresh = write("McpInline_py3.py", "print(3)");
+        File strayOracle = write("McpInline_py4.py_failed", "stale");
+        File mine = write("my_analysis.py", "print('mine')");
+        assertTrue(mine.setLastModified(System.currentTimeMillis() - 400L * 24 * 3600 * 1000));
+
+        ProgramScriptService.purgeStaleInlineScripts(dir, System.currentTimeMillis());
+
+        assertFalse(failed.exists());
+        assertFalse(failedOracle.exists());
+        assertFalse(orphan.exists());
+        assertTrue("a concurrent run's file must not be swept", fresh.exists());
+        assertFalse(strayOracle.exists());
+        assertTrue("a hand-written Python script must survive", mine.exists());
+    }
+
     /** Sweeping an empty or absent directory must not throw. */
     public void testEmptyAndMissingDirectoryAreSafe() {
         assertTrue(ProgramScriptService.purgeStaleInlineScripts(

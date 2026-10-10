@@ -69,9 +69,18 @@ public class ProgramScriptServiceValidationTest extends TestCase {
         // Security gate: arbitrary-code execution is off unless GHIDRA_MCP_ALLOW_SCRIPTS is set.
         // Assert the gate only in the (default) disabled state so the test is env-independent.
         if (!SecurityConfig.getInstance().areScriptsAllowed()) {
-            Response r = scripts.runScriptInline("System.out.println(1);", "", "");
+            Response r = scripts.runScriptInline("System.out.println(1);", "java", "", "");
             assertTrue(r instanceof Response.Err);
             assertTrue(((Response.Err) r).message().contains("Script execution disabled"));
+        }
+    }
+
+    public void testRunScriptInlineRejectsUnknownLanguage() {
+        // Only reachable past the gate, so assert it only when scripts are enabled.
+        if (SecurityConfig.getInstance().areScriptsAllowed()) {
+            Response r = scripts.runScriptInline("print(1)", "ruby", "", "");
+            assertTrue(r instanceof Response.Err);
+            assertTrue(((Response.Err) r).message().contains("Unsupported language 'ruby'"));
         }
     }
 

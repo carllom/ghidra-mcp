@@ -2602,6 +2602,7 @@
       "category": "program",
       "params": [
         "code",
+        "language",
         "args",
         "program"
       ],
@@ -2609,7 +2610,7 @@
         "gui",
         "headless"
       ],
-      "description": "Run inline script code"
+      "description": "Run inline script code (Java or Python)"
     },
     {
       "path": "/save_all_programs",
@@ -2962,13 +2963,14 @@
         "function_address",
         "prototype",
         "calling_convention",
+        "custom_storage",
         "program"
       ],
       "servers": [
         "gui",
         "headless"
       ],
-      "description": "Set function prototype (return type, param types, calling convention). NOTE: the function name in the prototype string does NOT rename the function — call rename_function separately if needed."
+      "description": "Set function prototype (return type, param types, calling convention, optional custom storage). NOTE: the function name in the prototype string does NOT rename the function — call rename_function separately if needed."
     },
     {
       "path": "/set_function_tag_comment",
