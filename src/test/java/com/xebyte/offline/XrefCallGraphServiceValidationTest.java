@@ -5,6 +5,8 @@ import com.xebyte.core.Response;
 import com.xebyte.core.ThreadingStrategy;
 import com.xebyte.core.XrefCallGraphService;
 import ghidra.program.model.address.Address;
+import ghidra.program.model.address.AddressFactory;
+import ghidra.program.model.address.AddressSpace;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.FunctionManager;
 import ghidra.program.model.listing.Program;
@@ -88,6 +90,12 @@ public class XrefCallGraphServiceValidationTest extends TestCase {
         when(caller.getName()).thenReturn("caller_func");
         when(caller.getEntryPoint()).thenReturn(entry);
         when(entry.toString()).thenReturn("00100000");
+        when(entry.toString(false)).thenReturn("00100000");
+        AddressFactory factory = mock(AddressFactory.class);
+        AddressSpace ram = mock(AddressSpace.class);
+        when(program.getAddressFactory()).thenReturn(factory);
+        when(factory.getDefaultAddressSpace()).thenReturn(ram);
+        when(entry.getAddressSpace()).thenReturn(ram);
 
         Response r = service.getFunctionCallers("target", 0, 10, "");
 
@@ -106,5 +114,6 @@ public class XrefCallGraphServiceValidationTest extends TestCase {
                 (java.util.List<java.util.Map<String, Object>>) body.get("callers");
         assertEquals(1, callers.size());
         assertEquals("caller_func", callers.get(0).get("name"));
+        assertEquals("default-space addresses stay bare", "00100000", callers.get(0).get("address"));
     }
 }

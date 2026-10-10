@@ -78,7 +78,7 @@ public class SymbolLabelService {
             if (symbol.getSymbolType() == SymbolType.LABEL &&
                 functionBody.contains(symbol.getAddress())) {
                 Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("address", symbol.getAddress().toString(false));
+                entry.put("address", AddressKeys.of(symbol.getAddress(), program));
                 entry.put("name", symbol.getName());
                 entry.put("source", symbol.getSource().toString());
                 labels.add(entry);

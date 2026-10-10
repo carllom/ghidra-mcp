@@ -111,8 +111,8 @@ public class ListingService {
         for (MemoryBlock block : program.getMemory().getBlocks()) {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("name", block.getName());
-            entry.put("start", block.getStart().toString(false));
-            entry.put("end", block.getEnd().toString(false));
+            entry.put("start", AddressKeys.of(block.getStart(), program));
+            entry.put("end", AddressKeys.of(block.getEnd(), program));
             entry.put("size", block.getSize());
             entry.put("readable", block.isRead());
             entry.put("writable", block.isWrite());
@@ -152,7 +152,7 @@ public class ListingService {
             if (s.isExternalEntryPoint()) {
                 Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("name", s.getName());
-                entry.put("address", s.getAddress().toString(false));
+                entry.put("address", AddressKeys.of(s.getAddress(), program));
                 exports.add(entry);
             }
         }
@@ -184,7 +184,7 @@ public class ListingService {
                     entry.put("label", data.getLabel() != null
                             ? data.getLabel()
                             : "DAT_" + data.getAddress().toString(false));
-                    entry.put("address", data.getAddress().toString(false));
+                    entry.put("address", AddressKeys.of(data.getAddress(), program));
                     entry.put("type", (dt != null) ? dt.getName() : "undefined");
                     entry.put("size", data.getLength());
                     entry.put("block", block.getName());
@@ -288,7 +288,7 @@ public class ListingService {
                 if (!isNamed && xrefCount < xrefMin) continue;
 
                 String label = (name != null) ? name : "DAT_" + addr.toString(false);
-                dataItems.add(new DataItemInfo(addr.toString(false), label, typeName,
+                dataItems.add(new DataItemInfo(AddressKeys.of(addr, program), label, typeName,
                         data.getLength(), xrefCount));
                 emittedAddrs.add(addr);
             }
@@ -310,7 +310,7 @@ public class ListingService {
                     if (functionManager.getFunctionContaining(addr) != null) continue;
                     int xrefCount = refMgr.getReferenceCountTo(addr);
                     if (xrefCount < xrefMin) continue;
-                    dataItems.add(new DataItemInfo(addr.toString(false),
+                    dataItems.add(new DataItemInfo(AddressKeys.of(addr, program),
                             "DAT_" + addr.toString(false), "undefined", 1, xrefCount));
                     emittedAddrs.add(addr);
                 }
@@ -530,7 +530,7 @@ public class ListingService {
 
                 if (filter == null || value.toLowerCase().contains(filter.toLowerCase())) {
                     Map<String, Object> entry = new LinkedHashMap<>();
-                    entry.put("address", data.getAddress().toString(false));
+                    entry.put("address", AddressKeys.of(data.getAddress(), program));
                     entry.put("value", value);
                     entry.put("length", value.length());
                     strings.add(entry);
@@ -733,7 +733,7 @@ public class ListingService {
                             ? d.getDataType().getName() : "undefined";
                     int len = (d != null) ? d.getLength() : 1;
                     String line = "DAT_" + addr.toString(false)
-                            + " @ " + addr.toString(false)
+                            + " @ " + AddressKeys.of(addr, program)
                             + " [Label] (" + typeName + ")"
                             + " xrefs=" + xrefCount;
                     if (!subFilter.isEmpty() && !line.toLowerCase().contains(subFilter)) continue;
@@ -877,7 +877,7 @@ public class ListingService {
             while (symbols.hasNext()) {
                 Symbol symbol = symbols.next();
                 if (symbol.getSymbolType() == SymbolType.FUNCTION || symbol.getSymbolType() == SymbolType.LABEL) {
-                    if (!containsAddress(entryPoints, symbol.getAddress())) {
+                    if (!containsAddress(entryPoints, symbol.getAddress(), program)) {
                         entryPoints.add(formatEntryPoint(symbol, "common_entry_name"));
                     }
                 }
@@ -893,11 +893,11 @@ public class ListingService {
             } else {
                 entryInfo = new LinkedHashMap<>();
                 entryInfo.put("name", "entry");
-                entryInfo.put("address", programEntry.toString(false));
+                entryInfo.put("address", AddressKeys.of(programEntry, program));
                 entryInfo.put("symbol_type", "FUNCTION");
                 entryInfo.put("kind", "program_entry");
             }
-            if (!containsAddress(entryPoints, programEntry)) {
+            if (!containsAddress(entryPoints, programEntry, program)) {
                 entryPoints.add(entryInfo);
             }
         }
@@ -912,7 +912,7 @@ public class ListingService {
                         if (func != null) {
                             Map<String, Object> potential = new LinkedHashMap<>();
                             potential.put("name", func.getName());
-                            potential.put("address", addr.toString(false));
+                            potential.put("address", AddressKeys.of(addr, program));
                             potential.put("symbol_type", "FUNCTION");
                             potential.put("kind", "potential_entry");
                             entryPoints.add(potential);
@@ -1038,7 +1038,7 @@ public class ListingService {
     private Map<String, Object> formatEntryPoint(Symbol symbol, String kind) {
         Map<String, Object> entry = new LinkedHashMap<>();
         entry.put("name", symbol.getName());
-        entry.put("address", symbol.getAddress().toString(false));
+        entry.put("address", AddressKeys.of(symbol.getAddress(), symbol.getProgram()));
         entry.put("symbol_type", symbol.getSymbolType().toString());
         entry.put("kind", kind);
 
@@ -1052,8 +1052,8 @@ public class ListingService {
         return entry;
     }
 
-    private boolean containsAddress(List<Map<String, Object>> entryPoints, Address address) {
-        String addrStr = address.toString(false);
+    private boolean containsAddress(List<Map<String, Object>> entryPoints, Address address, Program program) {
+        String addrStr = AddressKeys.of(address, program);
         for (Map<String, Object> entry : entryPoints) {
             if (addrStr.equals(entry.get("address"))) {
                 return true;

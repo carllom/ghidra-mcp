@@ -54,7 +54,7 @@ public class XrefCallGraphService {
                     Reference ref = it.next();
                     Address from = ref.getFromAddress();
                     Map<String, Object> entry = new LinkedHashMap<>();
-                    entry.put("from_address", from.toString(false));
+                    entry.put("from_address", AddressKeys.of(from, program));
                     if (qualify) {
                         entry.put("from_address_full", from.toString());
                         entry.put("from_address_space", from.getAddressSpace().getName());
@@ -126,7 +126,7 @@ public class XrefCallGraphService {
                 Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
 
                 Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("from_address", fromAddr.toString(false));
+                entry.put("from_address", AddressKeys.of(fromAddr, program));
                 entry.put("type", refType.getName());
                 if (fromFunc != null) {
                     entry.put("from_function", fromFunc.getName());
@@ -453,7 +453,7 @@ public class XrefCallGraphService {
         for (Function callee : sortedCallees) {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("name", callee.getName());
-            entry.put("address", callee.getEntryPoint().toString(false));
+            entry.put("address", AddressKeys.of(callee.getEntryPoint(), program));
             calleeList.add(entry);
         }
 
@@ -513,7 +513,7 @@ public class XrefCallGraphService {
         for (Function caller : sortedCallers) {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("name", caller.getName());
-            entry.put("address", caller.getEntryPoint().toString(false));
+            entry.put("address", AddressKeys.of(caller.getEntryPoint(), program));
             callerList.add(entry);
         }
 

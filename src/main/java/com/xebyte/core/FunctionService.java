@@ -166,7 +166,7 @@ decomp = ServiceUtils.createConfiguredDecompiler(program);
 
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("name", func.getName());
-            out.put("address", func.getEntryPoint().toString(false));
+            out.put("address", AddressKeys.of(func.getEntryPoint(), program));
             out.put("decompiled", decompResult.getDecompiledFunction().getC());
             return Response.ok(out);
         } catch (Throwable e) {
@@ -596,7 +596,7 @@ decomp = ServiceUtils.createConfiguredDecompiler(program);
                 String comment = listing.getComment(CodeUnit.EOL_COMMENT, instr.getAddress());
 
                 Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("address", instr.getAddress().toString(false));
+                entry.put("address", AddressKeys.of(instr.getAddress(), program));
                 entry.put("instruction", instr.toString());
                 if (comment != null && !comment.isEmpty()) {
                     entry.put("comment", comment);
@@ -742,11 +742,11 @@ decomp = ServiceUtils.createConfiguredDecompiler(program);
             Function func = funcLookup.function();
 Map<String, Object> out = new LinkedHashMap<>();
             out.put("name", func.getName());
-            out.put("address", func.getEntryPoint().toString(false));
+            out.put("address", AddressKeys.of(func.getEntryPoint(), program));
             out.put("signature", func.getSignature().getPrototypeString());
-            out.put("entry_point", func.getEntryPoint().toString(false));
-            out.put("body_start", func.getBody().getMinAddress().toString(false));
-            out.put("body_end", func.getBody().getMaxAddress().toString(false));
+            out.put("entry_point", AddressKeys.of(func.getEntryPoint(), program));
+            out.put("body_start", AddressKeys.of(func.getBody().getMinAddress(), program));
+            out.put("body_end", AddressKeys.of(func.getBody().getMaxAddress(), program));
             return Response.ok(out);
         } catch (Exception e) {
             return Response.err("Error getting function: " + e.getMessage());
@@ -2017,7 +2017,7 @@ Map<String, Object> out = new LinkedHashMap<>();
 
                     if (byNamespace || byThis) {
                         Map<String, Object> m = new LinkedHashMap<>();
-                        m.put("address", func.getEntryPoint().toString(false));
+                        m.put("address", AddressKeys.of(func.getEntryPoint(), program));
                         m.put("name", func.getName(true));
                         m.put("matched_by", (byNamespace && byThis) ? "both"
                                 : byNamespace ? "namespace" : "this_type");
@@ -3246,7 +3246,7 @@ Map<String, Object> out = new LinkedHashMap<>();
                 createResult.putAll(ServiceUtils.addressToJson(addr, program));
                 createResult.put("function_name", func.getName());
                 Address ep = func.getEntryPoint();
-                createResult.put("entry_point", ep.toString(false));
+                createResult.put("entry_point", AddressKeys.of(ep, program));
                 if (ServiceUtils.getPhysicalSpaceCount(program) > 1) {
                     createResult.put("entry_point_full", ep.toString());
                     createResult.put("entry_point_space", ep.getAddressSpace().getName());

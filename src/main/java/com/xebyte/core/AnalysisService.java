@@ -1283,7 +1283,7 @@ public class AnalysisService {
             Address ep = func.getEntryPoint();
             Map<String, Object> cfResult = new LinkedHashMap<>();
             cfResult.put("function_name", functionName);
-            cfResult.put("entry_point", ep.toString(false));
+            cfResult.put("entry_point", AddressKeys.of(ep, program));
             if (ServiceUtils.getPhysicalSpaceCount(program) > 1) {
                 cfResult.put("entry_point_full", ep.toString());
                 cfResult.put("entry_point_space", ep.getAddressSpace().getName());
@@ -2306,7 +2306,7 @@ public class AnalysisService {
                             Reference ref = refs.next();
                             Address fromAddr = ref.getFromAddress();
                             Map<String, Object> xrefItem = new LinkedHashMap<>();
-                            xrefItem.put("from", fromAddr.toString(false));
+                            xrefItem.put("from", AddressKeys.of(fromAddr, program));
                             if (ServiceUtils.getPhysicalSpaceCount(program) > 1) {
                                 xrefItem.put("from_full", fromAddr.toString());
                                 xrefItem.put("from_space", fromAddr.getAddressSpace().getName());
@@ -2438,7 +2438,7 @@ public class AnalysisService {
 
                     // Include completeness scoring (GitHub #109)
                     if (includeCompleteness) {
-                        String addrStr = func.getEntryPoint().toString(false);
+                        String addrStr = AddressKeys.of(func.getEntryPoint(), program);
                         Response completenessResp = analyzeFunctionCompleteness(addrStr, true, programName);
                         if (completenessResp instanceof Response.Ok ok) {
                             data.put("completeness", ok.data());
@@ -4434,8 +4434,8 @@ public class AnalysisService {
                         }
 
                         Map<String, Object> gap = new java.util.LinkedHashMap<>();
-                        gap.put("start", gapStart.toString(false));
-                        gap.put("end",   gapEnd.toString(false));
+                        gap.put("start", AddressKeys.of(gapStart, program));
+                        gap.put("end",   AddressKeys.of(gapEnd, program));
                         if (multiSpace) {
                             gap.put("start_full",    gapStart.toString());
                             gap.put("end_full",      gapEnd.toString());
@@ -4445,9 +4445,9 @@ public class AnalysisService {
                         gap.put("has_undefined_bytes",     hasUndefined);
                         gap.put("has_orphaned_instructions", hasInstructions);
                         gap.put("before_function",         before != null ? before.getName() : null);
-                        gap.put("before_function_address", before != null ? before.getEntryPoint().toString(false) : null);
+                        gap.put("before_function_address", before != null ? AddressKeys.of(before.getEntryPoint(), program) : null);
                         gap.put("after_function",          after != null ? after.getName() : null);
-                        gap.put("after_function_address",  after != null ? after.getEntryPoint().toString(false) : null);
+                        gap.put("after_function_address",  after != null ? AddressKeys.of(after.getEntryPoint(), program) : null);
                         gaps.add(gap);
                     }
 

@@ -5,6 +5,8 @@ import com.xebyte.core.ProgramProvider;
 import com.xebyte.core.Response;
 import com.xebyte.core.ServiceUtils;
 import ghidra.program.model.address.Address;
+import ghidra.program.model.address.AddressFactory;
+import ghidra.program.model.address.AddressSpace;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.mem.Memory;
 import ghidra.program.model.mem.MemoryBlock;
@@ -100,6 +102,12 @@ public class ListProgramItemsEndpointTest extends TestCase {
         when(block.getEnd()).thenReturn(end);
         when(start.toString(false)).thenReturn("401000");
         when(end.toString(false)).thenReturn("402000");
+        AddressFactory factory = mock(AddressFactory.class);
+        AddressSpace ram = mock(AddressSpace.class);
+        when(program.getAddressFactory()).thenReturn(factory);
+        when(factory.getDefaultAddressSpace()).thenReturn(ram);
+        when(start.getAddressSpace()).thenReturn(ram);
+        when(end.getAddressSpace()).thenReturn(ram);
         when(block.getSize()).thenReturn(0x1000L);
         when(block.isRead()).thenReturn(true);
         when(block.isWrite()).thenReturn(false);
@@ -115,6 +123,8 @@ public class ListProgramItemsEndpointTest extends TestCase {
         List<Map<String, Object>> items = (List<Map<String, Object>>) page0.get("items");
         assertEquals(1, items.size());
         assertEquals(".text", items.get(0).get("name"));
+        assertEquals("default-space addresses stay bare", "401000", items.get(0).get("start"));
+        assertEquals("402000", items.get(0).get("end"));
         assertTrue(items.get(0).containsKey("readable"));
         assertTrue(items.get(0).containsKey("executable"));
 

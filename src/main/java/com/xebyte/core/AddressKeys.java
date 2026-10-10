@@ -8,7 +8,9 @@ import java.util.Locale;
 
 /**
  * How an address is spelled wherever it is a key or a value an agent reads: bare lowercase
- * hex in the program's default space, {@code <space>:<hex>} in any other.
+ * hex in the program's default space, {@code <space>:<hex>} in any other physical space and
+ * {@code <overlay>::<hex>} in an overlay -- Ghidra's own spelling, as {@code Address.toString()}
+ * and the listing show it.
  *
  * <p>Bare hex alone collides as soon as a program has a second space: an overlay function at
  * {@code 0x1000} and the default-space function at {@code 0x1000} are two functions with one
@@ -28,12 +30,12 @@ public final class AddressKeys {
             return hex;
         }
         return a.getAddressSpace().equals(program.getAddressFactory().getDefaultAddressSpace())
-                ? hex : a.getAddressSpace().getName() + ":" + hex;
+                ? hex : a.getAddressSpace() + hex; // AddressSpace.toString() is "name:" or "name::"
     }
 
     /**
      * An address for reading and grepping: {@code 0x}-prefixed in the default space, the
-     * qualified key in any other ({@code ovl1:00001000}).
+     * qualified key in any other ({@code ovl1::00001000}).
      */
     public static String display(Address a, Program program) {
         String key = of(a, program);
@@ -56,13 +58,18 @@ public final class AddressKeys {
         }
         String t = raw.trim();
         int colon = t.lastIndexOf(':');
-        String space = colon >= 0 ? t.substring(0, colon) : "";
         String hex = colon >= 0 ? t.substring(colon + 1) : t;
         if (hex.startsWith("0x") || hex.startsWith("0X")) {
             hex = hex.substring(2);
         }
         hex = hex.toLowerCase(Locale.ROOT);
-        return space.isEmpty() ? hex : space + ":" + hex;
+        // Keep the space and its separator as written (":" or the overlay "::"); no space, bare hex.
+        return colon >= 0 && separatorStart(t, colon) > 0 ? t.substring(0, colon + 1) + hex : hex;
+    }
+
+    /** Where the separator ending at {@code colon} begins: {@code ::} (overlay) or {@code :}. */
+    private static int separatorStart(String key, int colon) {
+        return colon > 0 && key.charAt(colon - 1) == ':' ? colon - 1 : colon;
     }
 
     /** A caller's address in {@code program}'s key form; {@link #normalize} when it does not parse. */
@@ -75,7 +82,7 @@ public final class AddressKeys {
     public static String space(String key) {
         String k = normalize(key);
         int colon = k.lastIndexOf(':');
-        return colon >= 0 ? k.substring(0, colon) : "";
+        return colon >= 0 ? k.substring(0, separatorStart(k, colon)) : "";
     }
 
     /** The offset part of a key, 0 when it does not parse. */

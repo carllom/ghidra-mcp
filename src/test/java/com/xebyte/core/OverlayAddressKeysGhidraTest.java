@@ -87,10 +87,27 @@ public class OverlayAddressKeysGhidraTest {
     @Test
     public void theDefaultSpaceStaysBareAndTheOverlayIsQualified() {
         assertEquals("00001000", AddressKeys.of(base));
-        assertEquals("OVL:00001000", AddressKeys.of(overlay));
+        assertEquals("an overlay key uses Ghidra's own '::' spelling",
+            overlay.getEntryPoint().toString(), AddressKeys.of(overlay));
+        assertEquals("OVL::00001000", AddressKeys.of(overlay));
         assertSame(base, AddressKeys.function(program, "00001000"));
-        assertSame(overlay, AddressKeys.function(program, "OVL:00001000"));
+        assertSame(overlay, AddressKeys.function(program, "OVL::00001000"));
+        assertSame("the single-colon spelling still resolves",
+            overlay, AddressKeys.function(program, "OVL:00001000"));
         assertEquals("a caller's spelling of the default space becomes the bare key",
             "00001000", AddressKeys.canonical(program, "0x1000"));
+        assertEquals("either overlay spelling becomes the '::' key",
+            "OVL::00001000", AddressKeys.canonical(program, "OVL:0x1000"));
+    }
+
+    @Test
+    public void keyStringsKeepTheirSeparator() {
+        assertEquals("OVL::00001000", AddressKeys.normalize("OVL::0x00001000"));
+        assertEquals("ram:00001000", AddressKeys.normalize("ram:0X00001000"));
+        assertEquals("00001000", AddressKeys.normalize("0x00001000"));
+        assertEquals("OVL", AddressKeys.space("OVL::1000"));
+        assertEquals("ram", AddressKeys.space("ram:1000"));
+        assertEquals("", AddressKeys.space("1000"));
+        assertEquals(0x1000L, AddressKeys.offset("OVL::1000"));
     }
 }
