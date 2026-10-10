@@ -902,24 +902,26 @@ public final class ServiceUtils {
 
     /**
      * Return enriched address fields as a Map for JSON responses.
-     * Always includes "address" (plain hex, no space prefix).
+     * Always includes "address", spelled as {@link AddressKeys#of}: bare hex in the default
+     * space, space-qualified elsewhere ({@code OVL::1000}), so it is safe to read on its own
+     * and agrees with the address fields that come straight from AddressKeys.
      * Includes "address_full" and "address_space" when the address is in an overlay
      * space (so it round-trips correctly) OR when the program has >1 physical space.
      * If program is null and the address is non-overlay, emits only "address".
      */
     public static Map<String, Object> addressToJson(Address address, Program program) {
-        String plainHex = address.toString(false);
+        String key = AddressKeys.of(address, program);
         boolean isOverlay = address.getAddressSpace().isOverlaySpace();
         boolean isExternal = address.getAddressSpace().getType() == AddressSpace.TYPE_EXTERNAL;
         // Overlay and external addresses must ALWAYS carry the qualifier: their bare hex
         // can re-resolve to the wrong logical space. For non-overlay, non-external addresses
         // keep the existing rule (qualify only when there is real physical ambiguity).
         if (!isOverlay && !isExternal && (program == null || getPhysicalSpaceCount(program) <= 1)) {
-            return JsonHelper.mapOf("address", plainHex);
+            return JsonHelper.mapOf("address", key);
         }
         String spaceName = address.getAddressSpace().getName();
         return JsonHelper.mapOf(
-            "address",       plainHex,
+            "address",       key,
             "address_full",  address.toString(),
             "address_space", spaceName
         );

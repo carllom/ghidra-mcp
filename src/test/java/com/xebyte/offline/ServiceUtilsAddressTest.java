@@ -362,7 +362,8 @@ public class ServiceUtilsAddressTest {
         when(ovAddr.toString()).thenReturn("cli.Initial::00010000");
 
         Map<String, Object> result = ServiceUtils.addressToJson(ovAddr, program);
-        assertEquals("00010000", result.get("address"));
+        assertEquals("address is safe on its own: qualified, in Ghidra's '::' spelling",
+            "cli.Initial::00010000", result.get("address"));
         assertEquals("cli.Initial::00010000", result.get("address_full"));
         assertEquals("cli.Initial", result.get("address_space"));
     }

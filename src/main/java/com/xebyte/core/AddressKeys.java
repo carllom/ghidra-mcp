@@ -1,6 +1,7 @@
 package com.xebyte.core;
 
 import ghidra.program.model.address.Address;
+import ghidra.program.model.address.AddressSpace;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
 
@@ -29,8 +30,12 @@ public final class AddressKeys {
         if (program == null) {
             return hex;
         }
-        return a.getAddressSpace().equals(program.getAddressFactory().getDefaultAddressSpace())
-                ? hex : a.getAddressSpace() + hex; // AddressSpace.toString() is "name:" or "name::"
+        AddressSpace space = a.getAddressSpace();
+        if (space.equals(program.getAddressFactory().getDefaultAddressSpace())) {
+            return hex;
+        }
+        // Ghidra's own separator: Address.toString() writes overlays as "name::hex".
+        return space.getName() + (space.isOverlaySpace() ? "::" : ":") + hex;
     }
 
     /**
