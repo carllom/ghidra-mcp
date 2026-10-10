@@ -2635,8 +2635,9 @@ public class ProgramScriptService {
                     succeeded = Boolean.TRUE.equals(dataMap.get("success"));
                 }
                 if (succeeded) {
-                    // Clean run: remove the source file immediately.
+                    // Clean run: remove the source file (and Python's bytecode cache) immediately.
                     if (!tempScript.delete()) tempScript.deleteOnExit();
+                    if (isPython) purgeInlineBytecode(scriptsDir);
                 } else {
                     // Failed run: leave the script on disk for next run's pre-cleanup to remove
                     // (which will clear Ghidra's build-state entry for it), and write an
@@ -2683,7 +2684,8 @@ public class ProgramScriptService {
      *   <li>No oracle, fresh → likely a concurrent run; leave alone.</li>
      * </ol>
      * Orphaned oracles whose {@code .java} is already gone are purged too. Python inline
-     * scripts ({@code .py}, oracle {@code .py_failed}) are swept by the same rules.
+     * scripts ({@code .py}, oracle {@code .py_failed}) are swept by the same rules, and so
+     * is the bytecode PyGhidra caches for them in {@code __pycache__}.
      *
      * <p>Static, and side-effect-scoped to {@code scriptsDir}, so {@code InlineScriptCleanupTest}
      * can drive it against a temporary directory. Public only because the offline tests live
@@ -2717,6 +2719,31 @@ public class ProgramScriptService {
                     if (!new File(scriptsDir, scriptName).exists() && oracle.delete()) {
                         removed.add(oracle.getName());
                     }
+                }
+            }
+        }
+        removed.addAll(purgeInlineBytecode(scriptsDir));
+        return removed;
+    }
+
+    /**
+     * Remove {@code __pycache__/McpInline_<hex>.<tag>.pyc} files whose {@code .py} is gone.
+     * CPython (PyGhidra) caches bytecode for every script it imports, so without this each
+     * Python inline run leaves a .pyc behind. Only generated names are touched — Python
+     * inline scripts never take a caller-chosen name — and a .pyc whose source still exists
+     * may belong to a concurrent run, so it is left alone.
+     *
+     * @return the names of files deleted
+     */
+    static java.util.List<String> purgeInlineBytecode(File scriptsDir) {
+        java.util.List<String> removed = new java.util.ArrayList<>();
+        File[] cached = new File(scriptsDir, "__pycache__").listFiles(
+            (d, n) -> n.startsWith("McpInline_") && n.endsWith(".pyc"));
+        if (cached != null) {
+            for (File pyc : cached) {
+                String module = pyc.getName().substring(0, pyc.getName().indexOf('.'));
+                if (!new File(scriptsDir, module + ".py").exists() && pyc.delete()) {
+                    removed.add(pyc.getName());
                 }
             }
         }

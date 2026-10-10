@@ -30,6 +30,10 @@ public class InlineScriptCleanupTest extends TestCase {
 
     @Override
     protected void tearDown() {
+        File[] cached = new File(dir, "__pycache__").listFiles();
+        if (cached != null) {
+            for (File f : cached) f.delete();
+        }
         File[] leftovers = dir.listFiles();
         if (leftovers != null) {
             for (File f : leftovers) f.delete();
@@ -131,6 +135,23 @@ public class InlineScriptCleanupTest extends TestCase {
         assertTrue("a concurrent run's file must not be swept", fresh.exists());
         assertFalse(strayOracle.exists());
         assertTrue("a hand-written Python script must survive", mine.exists());
+    }
+
+    /** PyGhidra caches bytecode per run; it goes once its .py is gone, and only then. */
+    public void testInlineBytecodeIsSweptOnlyWithoutItsSource() throws Exception {
+        assertTrue(new File(dir, "__pycache__").mkdir());
+        File orphan = write("__pycache__/McpInline_done.cpython-313.pyc", "x");
+        File live = write("__pycache__/McpInline_live.cpython-313.pyc", "x");
+        write("McpInline_live.py", "print(1)");
+        File mine = write("__pycache__/my_analysis.cpython-313.pyc", "x");
+
+        List<String> removed = ProgramScriptService.purgeStaleInlineScripts(
+            dir, System.currentTimeMillis());
+
+        assertFalse(orphan.exists());
+        assertTrue(removed.contains("McpInline_done.cpython-313.pyc"));
+        assertTrue("bytecode of a run still in flight must survive", live.exists());
+        assertTrue("bytecode of a hand-written script must survive", mine.exists());
     }
 
     /** Sweeping an empty or absent directory must not throw. */
